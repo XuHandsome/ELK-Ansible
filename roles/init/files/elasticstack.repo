@@ -1,0 +1,5 @@
+[elasticstack]
+name=elasticstack
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/elasticstack/8.x/yum
+enabled=1
+gpgcheck=0

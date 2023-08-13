@@ -1,0 +1,16 @@
+# 检查运行状态
+- name: check listen port
+  wait_for:
+    port: "{{ item }}"
+    timeout: 15
+    delay: 3
+  with_items:
+    - "{{ kibana_port }}"
+
+- name: kibana status
+  command: systemctl status kibana
+  changed_when: False
+  register: kibana_check
+
+- name: check proccess
+  debug: var=kibana_check verbosity=0

@@ -1,0 +1,6 @@
+---
+logstash_etc: "/etc/logstash"
+logstash_data: "/app/data/logstash"
+logstash_port: "{{ logstash_piplines }}"
+logstash_maxdata: "10gb"
+yumrepo: "elasticstack"

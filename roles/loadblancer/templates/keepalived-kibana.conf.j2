@@ -1,0 +1,32 @@
+! Please do not change this file directly since it is managed by Ansible and will be overwritten
+! Configuration File for keepalived
+
+global_defs {
+   router_id KIBANA
+   script_user root
+   enable_script_security
+}
+
+vrrp_script check_kibana  {
+    script "/usr/local/src/kibana_check.sh"
+    interval 2
+    weight 2
+}
+
+vrrp_instance VI {
+    state {{ 'MASTER' if keepalive is defined else 'BACKUP' }}
+    priority {{ '100' if keepalive is defined else '90' }}
+    interface {{ kibana_interface }}
+    virtual_router_id {{ kibana_virtual_router_id }}
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+    track_script {
+      check_kibana
+    }
+    virtual_ipaddress {
+        {{ kibana_vip }} dev {{ kibana_interface }}
+    }
+}

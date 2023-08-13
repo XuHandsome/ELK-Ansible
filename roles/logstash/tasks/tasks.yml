@@ -1,0 +1,120 @@
+---
+- name: check /app/data mount status
+  command: mountpoint -q /app/data
+  args:
+    creates: "{{ logstash_data }}"
+  register: volume_stat
+  ignore_errors: true
+  tags:
+    - logstash
+    - check
+
+- block:
+    - name: create data directorys
+      file:
+        name: /app/data
+        state: directory
+
+    - name: mkfs xfs {{ data_device }}
+      filesystem:
+        fstype: xfs
+        opts: -f
+        dev: "{{ data_device }}"
+
+    - name: mount {{ data_device }} to /app/data
+      mount:
+        path: /app/data
+        src: "{{ data_device }}"
+        fstype: xfs
+        state: mounted
+  when:
+    - volume_stat.rc is defined
+    - volume_stat.rc != 0
+  tags:
+    - logstash
+    - disk
+
+- name: create data dir
+  file:
+    dest: "{{ logstash_data }}"
+    state: directory
+    owner: logstash
+    group: logstash
+    mode: 0755
+  tags:
+    - logstash
+    - disk
+
+- name: Install rpms
+  yum:
+    disablerepo: "*"
+    enablerepo: "{{ yumrepo }}"
+    name:
+      - logstash-8.2.2
+    state: present
+  register: first_install
+  tags:
+    - logstash
+    - yum
+
+- name: upload jvm options
+  template:
+    src: jvm.options.j2
+    dest: "{{ logstash_etc }}/jvm.options"
+    owner: root
+    group: root
+    backup: yes
+  notify:
+    - restart logstash
+    - logstash status check
+  tags:
+    - logstash
+    - jvm
+    - config
+
+- name: distribute config
+  template:
+    src: logstash.yml.j2
+    dest: "{{ logstash_etc }}/logstash.yml"
+    owner: root
+    group: root
+    backup: yes
+  notify:
+    - restart logstash
+    - logstash status check
+  tags:
+    - logstash
+    - config
+
+- name: distribute pipline config
+  template:
+    src: pipelines.yml.j2
+    dest: "{{ logstash_etc }}/pipelines.yml"
+    owner: root
+    group: root
+    backup: yes
+  tags:
+    - logstash
+    - config
+
+- name: get local password
+  delegate_to: localhost
+  shell: "cat {{ inventory_dir }}/data/elastic.pass"
+  register: elastic_pass
+
+- set_fact:
+    elastic_passwd: "{{ elastic_pass.stdout }}"
+
+- name: distribute piplines
+  template:
+    src: beats.conf.j2
+    dest: "{{ logstash_etc }}/conf.d/beats{{ item }}.conf"
+    owner: root
+    group: root
+    backup: yes
+  with_items:
+    - "{{ logstash_port }}"
+  tags:
+    - logstash
+    - pipline
+    - config

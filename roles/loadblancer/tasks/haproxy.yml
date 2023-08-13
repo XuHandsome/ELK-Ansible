@@ -1,0 +1,24 @@
+---
+- name: Install haproxy rpms
+  yum:
+    name:
+      - haproxy
+    state: present
+  register: first_install
+  tags:
+    - haproxy
+    - yum
+
+- name: distribute haproxy config
+  template:
+    src: haproxy.cfg.j2
+    dest: "{{ haproxy_etc }}/haproxy.cfg"
+    owner: root
+    group: root
+    backup: yes
+  notify:
+    - restart haproxy
+    - haproxy status check
+  tags:
+    - haproxy
+    - config

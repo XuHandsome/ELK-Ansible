@@ -1,0 +1,5 @@
+---
+kibana_port: [5601]
+yumrepo: "elasticstack"
+kibana_etc: "/etc/kibana"
+elastic_client: "http://{{hostvars[groups.client[0]]['ansible_host']}}:9200"

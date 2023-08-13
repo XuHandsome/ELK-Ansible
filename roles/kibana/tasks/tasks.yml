@@ -1,0 +1,37 @@
+---
+- name: Install rpms
+  yum:
+    disablerepo: "*"
+    enablerepo: "{{ yumrepo }}"
+    name:
+      - kibana-8.2.2
+    state: present
+  register: first_install
+  tags:
+    - kibana
+    - yum
+
+- name: get local password
+  delegate_to: localhost
+  shell: "cat {{ inventory_dir }}/data/kibana_system.pass"
+  register: kibana_system_pass
+
+- set_fact:
+    kibana_system_pass: "{{ kibana_system_pass.stdout }}"
+
+- name: distribute config
+  template:
+    src: "{{ item }}.j2"
+    dest: "{{ kibana_etc }}/{{ item }}"
+    owner: kibana
+    group: kibana
+    backup: yes
+  with_items:
+    - kibana.yml
+    - node.options
+  notify:
+    - restart kibana
+    - kibana status check
+  tags:
+    - kibana
+    - config

@@ -1,0 +1,5 @@
+---
+metricbeat_port: [5066]
+yumrepo: "elasticstack"
+metricbeat_etc: "/etc/metricbeat"
+elastic_client: "http://{{hostvars[groups.client[0]]['ansible_host']}}:9200"

@@ -1,0 +1,6 @@
+---
+
+- include: tasks.yml
+  when: common_role_exists is not defined
+
+- set_fact: common_role_exists=1

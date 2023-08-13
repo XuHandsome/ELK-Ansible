@@ -1,0 +1,28 @@
+metricbeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: false
+
+setup.template.settings:
+  index.number_of_shards: 1
+  index.codec: best_compression
+
+setup.kibana:
+  host: ""
+
+output.elasticsearch:
+  hosts: [{% for node in groups["client"]%}"http://{{hostvars[node]['ansible_host']}}:9200"{% if not loop.last%},{% endif %}{% endfor %}]
+  username: elastic
+  password: {{ elastic_passwd }}
+
+
+processors:
+  - add_host_metadata: ~
+  - add_cloud_metadata: ~
+  - add_docker_metadata: ~
+  - add_kubernetes_metadata: ~
+
+http.enabled: true
+http.port: 5066
+monitoring.enabled: false
+http.host: 127.0.0.1
+monitoring.cluster_uuid: "{{ es_cluster_uuid }}"

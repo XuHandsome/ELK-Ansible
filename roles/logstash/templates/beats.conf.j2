@@ -1,0 +1,143 @@
+input {
+   beats {
+      port => {{ item }}
+   }
+}
+
+filter {
+   if [fields][log_type] == "journald" {
+      date {
+         match => ["date" , "yyyy-MM-dd HH:mm:ss.SSS"]
+         target => "@timestamp"
+         timezone => "Asia/Shanghai"
+      }
+      mutate {
+         remove_field => ["event","[agent][type]","[agent][name]","tags","[agent][id]","[ecs][version]","[agent][ephemeral_id]","[agent][version]","[journald][host][boot_id]","[host][hostname]","[host][id]","[journald][custom][stream_id]"]
+         lowercase => ["[syslog][identifier]"]
+         add_field => {"[data_stream][dataset]" => "%{[syslog][identifier]}"}
+         add_field => {"[data_stream][namespace]" => "%{[fields][log_type]}"}
+      }
+   }
+
+   if [fields][log_type] == "docker_container" {
+      if [docker][container][labels][io_kubernetes_pod_namespace] == "traefik" {
+        json {
+            source => "message"
+            remove_field => ["message"]
+            skip_on_invalid_json => true
+        }
+        mutate {
+            remove_field => ["message","event"]
+        }
+      }
+      mutate {
+         remove_field => ["event","[agent][type]","[agent][name]","tags","[agent][id]","[ecs][version]","[agent][ephemeral_id]","[agent][version]","[docker][container][labels][annotation_io_kubernetes_pod_terminationGracePeriod]","[docker][container][labels][io_kubernetes_sandbox_id]","[docker][container][labels][annotation_io_kubernetes_container_terminationMessagePolicy]","[container][id]","[docker][container][labels][annotation_io_kubernetes_container_hash]","[docker][container][labels][io_kubernetes_pod_namespace]","[docker][container][labels][org_opencontainers_image_url]","[docker][container][labels][annotation_io_kubernetes_container_preStopHandler]","[docker][container][labels][io_kubernetes_container_logpath]","[docker][container][labels][org_opencontainers_image_vendor]","[docker][container][labels][org_opencontainers_image_documentation]","[docker][container][labels][org_opencontainers_image_title]","[docker][container][labels][annotation_io_kubernetes_container_terminationMessagePath]","[docker][container][labels][io_kubernetes_pod_uid]","[log][file][path]","[docker][container][labels][annotation_io_kubernetes_container_ports]","[docker][container][labels][org_opencontainers_image_description]","[docker][container][labels][io_kubernetes_docker_type]"]
+         add_field => {"[data_stream][dataset]" => "docker_container"}
+         add_field => {"[data_stream][namespace]" => "%{[docker][container][labels][io_kubernetes_pod_namespace]}"}
+      }
+   }
+
+   if [fields][log_type] == "container_stdout" {
+      if [kubernetes][namespace] == "traefik" {
+        json {
+            source => "message"
+            remove_field => ["message"]
+            skip_on_invalid_json => true
+        }
+        mutate {
+            remove_field => ["message","event"]
+        }
+      }
+      mutate {
+         remove_field => ["event","[agent][type]","[agent][name]","tags","[agent][id]","[ecs][version]","[agent][ephemeral_id]","[agent][version]","[kubernetes][node][name]","[kubernetes][node][uid]","[kubernetes][node][hostname]","[kubernetes][namespace_uid]","[kubernetes][namespace_labels]","[kubernetes][pod][uid]","[kubernetes][node][labels][kubernetes_io/os]","[kubernetes][node][labels][beta_kubernetes_io/os]","[kubernetes][namespace_labels][kubernetes_io/metadata_name]","[kubernetes][labels][pod-template-generation]","[kubernetes][node][labels][kubernetes_io/hostname]","[kubernetes][node][labels][beta_kubernetes_io/arch]","[kubernetes][labels][controller-revision-hash]","[kubernetes][node][labels][kubernetes_io/arch]"]
+         add_field => {"[data_stream][dataset]" => "%{[fields][log_type]}"}
+         add_field => {"[data_stream][namespace]" => "%{[kubernetes][namespace]}"}
+      }
+   }
+
+   if [fields][log_type] == "bind9-channel" {
+      grok {
+         match => [
+            "message","%{BIND9_TIMESTAMP:date}%{SPACE}%{NOTSPACE:channel}:%{SPACE}%{LOGLEVEL:level}%{SPACE}(%{NUMBER:debug_level})?:(%{SPACE})?(client%{SPACE}%{NOTSPACE:client_id}%{SPACE}%{IP:client_ip}#%{POSINT:client_port}%{SPACE}\(%{GREEDYDATA:query}\):%{SPACE}query:%{SPACE}%{GREEDYDATA:domain}%{SPACE}IN%{SPACE}%{GREEDYDATA:query_type}%{SPACE}\(%{IP:local_address}\))?%{GREEDYDATA:context}"
+         ]
+      }
+      date {
+         match => ["date" , "dd-MMM-yyyy HH:mm:ss.SSS"]
+         target => "@timestamp"
+         timezone => "Asia/Shanghai"
+      }
+      mutate {
+         remove_field => ["message","event"]
+         add_field => {"hostname" => "%{[host][name]}"}
+         add_field => {"bind_server" => "%{[host][name]}"}
+      }
+      mutate {
+         gsub => [
+            "bind_server",
+            "-",
+            ".",
+            "bind_server",
+            ".*v"
+         ]
+      }
+      mutate {
+         lowercase => [ "hostname" ]
+         add_field => {"[data_stream][dataset]" => "%{hostname}"}
+         add_field => {"[data_stream][namespace]" => "%{[fields][log_type]}"}
+      }
+   }
+
+   if [fields][log_type] == "mysql-general" {
+      grok {
+         match => [
+            "message","%{TIMESTAMP_ISO8601:logtime}\s+%{INT:thread_id}\s%{WORD:method}\s%{GREEDYDATA:sql}"
+         ]
+      }
+      date {
+         match => ["logtime", "ISO8601"]
+         target => "@timestamp"
+         timezone => "Asia/Shanghai"
+      }
+      mutate {
+         lowercase => [ "%{[agent][name]}" ]
+      }
+      mutate {
+         add_field => {"[data_stream][dataset]" => "%{[agent][name]}"}
+         add_field => {"[data_stream][namespace]" => "%{[fields][log_type]}"}
+      }
+      mutate {
+         remove_field => ["message","event","[agent][type]","tags","[agent][id]","[ecs][version]","[agent][ephemeral_id]","[agent][version]"]
+      }
+   }
+
+   if [fields][log_type] == "oceanbase_slow"{
+      grok {
+           match => {"message" => ""}
+           overwrite => [ "message" ]
+           remove_field => ["event"]
+      }
+      grok {
+         match => {"message" => "%{TIMESTAMP_ISO8601:date},%{WORD:cluster_name},(%{WORD:trace_id})?,(%{WORD:rpc_id})?,(%{WORD:logic_datasource})?,(%{WORD:physics_cluster}:%{WORD:physics_tenant}:%{WORD:physics_database})?,(%{WORD:db_type})?,(%{WORD:logic_table})?,(%{WORD:physics_table})?,(%{WORD:sql_command})?,(%{WORD:sql_type})?,(%{WORD:exec_status})?,(%{WORD:err_code})?,%{GREEDYDATA:sqlText},(%{WORD:total_time})?,(%{WORD:pre_exec_time})?,(%{WORD:connect_time})?,(%{WORD:exec_time})?,(%{GREEDYDATA:odp_tid})?,(%{GREEDYDATA:system_penetrate_data})?,(%{WORD:penetrate_data})?,(%{WORD:db_key})?,(%{NUMBER:beyond_trust})?,(%{IP:server_ip}:%{NUMBER:server_port})?"}
+      }
+      date {
+         match => ["date" , "yyyy-MM-dd HH:mm:ss.SSSSSS"]
+         target => "@timestamp"
+         timezone => "Asia/Shanghai"
+      }
+      mutate {
+         remove_field => ["message","event","[agent][type]","[agent][name]","tags","[agent][id]","[ecs][version]","[agent][ephemeral_id]","[agent][version]","[input][type]","[host][id]"]
+         add_field => {"[data_stream][dataset]" => "%{[fields][log_type]}"}
+         add_field => {"[data_stream][namespace]" => "%{[fields][env_code]}"}
+      }
+   }
+}
+
+output {
+   elasticsearch {
+      hosts => [{% for node in groups["client"]%}"http://{{hostvars[node]['ansible_host']}}:9200"{% if not loop.last%},{% endif %}{% endfor %}]
+      user => "elastic"
+      password => "{{ elastic_passwd }}"
+      data_stream => "true"
+      data_stream_type => "logs"
+   }
+}

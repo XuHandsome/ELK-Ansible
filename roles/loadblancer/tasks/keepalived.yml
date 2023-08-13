@@ -1,0 +1,70 @@
+---
+- name: Install keepalived rpms
+  yum:
+    name:
+      - psmisc
+      - keepalived
+    state: present
+  register: first_install
+  tags:
+    - keepalived
+    - yum
+
+- block:
+    - name: configure system kernel
+      lineinfile:
+        dest: /etc/sysctl.conf
+        line: "net.ipv4.ip_nonlocal_bind = 1"
+
+    - name: exec sysctl -w
+      shell: "sysctl -w net.ipv4.ip_nonlocal_bind=1"
+  when: first_install.changed == true
+  tags:
+    - keepalived
+    - sysconfig
+
+- name: upload proccess check scripts
+  copy:
+    src: "{{ item }}"
+    dest: "/usr/local/src/{{ item }}"
+    mode: 0744
+    owner: root
+    group: root
+    backup: yes
+  with_items:
+    - elasticsearch_check.sh
+    - kibana_check.sh
+  tags:
+    - keepalived
+    - config
+    - check_script
+
+- name: distribute es keepalived config
+  template:
+    src: keepalived-es.conf.j2
+    dest: "{{ keepalived_etc }}/keepalived.conf"
+    owner: root
+    group: root
+    backup: yes
+  notify:
+    - restart keepalived
+    - keepalived status check
+  when: inventory_hostname in groups["client"]
+  tags:
+    - keepalived
+    - config
+
+- name: distribute kibana keepalived config
+  template:
+    src: keepalived-kibana.conf.j2
+    dest: "{{ keepalived_etc }}/keepalived.conf"
+    owner: root
+    group: root
+    backup: yes
+  notify:
+    - restart keepalived
+    - keepalived status check
+  when: inventory_hostname in groups["kibana"]
+  tags:
+    - keepalived
+    - config

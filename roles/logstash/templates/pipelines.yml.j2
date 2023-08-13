@@ -1,0 +1,8 @@
+# This file is where you define your pipelines. You can define multiple.
+# For more information on multiple pipelines, see the documentation:
+#   https://www.elastic.co/guide/en/logstash/current/multiple-pipelines.html
+
+{% for port in logstash_port %}
+- pipeline.id: beat{{ loop.index }}
+  path.config: "{{ logstash_etc }}/conf.d/beats{{ port }}.conf"
+{% endfor %}

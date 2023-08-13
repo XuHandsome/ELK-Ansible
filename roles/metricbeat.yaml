@@ -1,0 +1,5 @@
+---
+- hosts: metricbeat
+  remote_user: root
+  roles:
+    - metricbeat

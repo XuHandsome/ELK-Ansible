@@ -1,0 +1,16 @@
+# 检查运行状态
+- name: check listen port
+  wait_for:
+    port: "{{ item }}"
+    timeout: 60
+    delay: 5
+  with_items:
+    - "{{ logstash_port }}"
+
+- name: logstash status
+  command: systemctl status logstash
+  changed_when: False
+  register: logstash_check
+
+- name: check proccess
+  debug: var=logstash_check verbosity=0

@@ -1,0 +1,80 @@
+[master]
+es-master-v168-1-100 ansible_host=192.168.1.100 init=true
+es-master-v168-1-101 ansible_host=192.168.1.101
+es-master-v168-1-102 ansible_host=192.168.1.102
+
+[client]
+es-client-v168-1-103 ansible_host=192.168.1.103 keepalive=master
+es-client-v168-1-104 ansible_host=192.168.1.104
+es-client-v168-1-105 ansible_host=192.168.1.105
+
+[hotdata]
+es-hotdata-v168-1-106 ansible_host=192.168.1.106
+es-hotdata-v168-1-107 ansible_host=192.168.1.107
+es-hotdata-v168-1-108 ansible_host=192.168.1.108
+es-hotdata-v168-1-109 ansible_host=192.168.1.109
+es-hotdata-v168-1-110 ansible_host=192.168.1.110
+es-hotdata-v168-1-111 ansible_host=192.168.1.111
+
+[colddata]
+es-colddata-v168-1-115 ansible_host=192.168.1.115
+es-colddata-v168-1-116 ansible_host=192.168.1.116
+es-colddata-v168-1-117 ansible_host=192.168.1.117
+es-colddata-v168-1-118 ansible_host=192.168.1.118
+es-colddata-v168-1-119 ansible_host=192.168.1.119
+es-colddata-v168-1-120 ansible_host=192.168.1.120
+es-colddata-v168-1-121 ansible_host=192.168.1.121
+es-colddata-v168-1-122 ansible_host=192.168.1.122
+es-colddata-v168-1-123 ansible_host=192.168.1.123
+es-colddata-v168-1-124 ansible_host=192.168.1.124
+es-colddata-v168-1-125 ansible_host=192.168.1.125
+es-colddata-v168-1-126 ansible_host=192.168.1.126
+es-colddata-v168-1-127 ansible_host=192.168.1.127
+es-colddata-v168-1-128 ansible_host=192.168.1.128
+es-colddata-v168-1-129 ansible_host=192.168.1.129
+
+[logstash]
+logstash-v168-1-112 ansible_host=192.168.1.112
+logstash-v168-1-113 ansible_host=192.168.1.113
+logstash-v168-1-114 ansible_host=192.168.1.114
+
+[metricbeat]
+logstash-v168-1-112 ansible_host=192.168.1.112
+logstash-v168-1-113 ansible_host=192.168.1.113
+logstash-v168-1-114 ansible_host=192.168.1.114
+
+[kibana]
+kibana-v168-1-130 ansible_host=192.168.1.130 keepalive=master
+kibana-v168-1-131 ansible_host=192.168.1.131
+
+[es:children]
+master
+client
+hotdata
+colddata
+
+[all:children]
+es
+logstash
+kibana
+
+[all:vars]
+ansible_ssh_user='root'
+ansible_ssh_port=22
+data_device = "/dev/sdb"
+
+# es配置
+cluster_name="log"
+cert_pass = "ohopspass"
+
+# logstash piline, 自动伸缩, 可以添加或减少端口应对不同的负载情况
+logstash_piplines = [5041, 5042, 5043, 5044]
+
+
+## Elasticsearch VIP ,绑定到三台client节点上
+es_interface = "eth0"
+es_vip = "192.168.1.199/22"
+
+## Kibana VIP, 绑定到两台kibana节点上, 外层建议加nginx代理http://kibana_vip:5601
+kibana_interface = "eth0"
+kibana_vip = "192.168.1.200/22"

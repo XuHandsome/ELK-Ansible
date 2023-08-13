@@ -1,0 +1,16 @@
+# 检查运行状态
+- name: check listen port
+  wait_for:
+    port: "{{ item }}"
+    timeout: 15
+    delay: 3
+  with_items:
+    - "{{ metricbeat_port }}"
+
+- name: metricbeat status
+  command: systemctl status metricbeat
+  changed_when: False
+  register: metricbeat_check
+
+- name: check proccess
+  debug: var=metricbeat_check verbosity=0

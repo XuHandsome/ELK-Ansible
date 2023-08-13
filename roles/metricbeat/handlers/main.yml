@@ -1,0 +1,12 @@
+---
+- name: restart metricbeat
+  throttle: 1
+  systemd:
+    name: metricbeat
+    enabled: yes
+    state: restarted
+    daemon_reload: yes
+
+# 检查运行状态
+- name: metricbeat status check
+  include_tasks: check.yml

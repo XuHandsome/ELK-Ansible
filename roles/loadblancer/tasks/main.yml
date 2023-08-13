@@ -1,0 +1,6 @@
+---
+- include_tasks: haproxy.yml
+  when: inventory_hostname in groups["logstash"]
+
+- include_tasks: keepalived.yml
+  when: inventory_hostname in groups["client"] or inventory_hostname in groups["kibana"]

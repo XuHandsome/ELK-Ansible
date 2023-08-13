@@ -1,0 +1,45 @@
+cluster.name: {{ cluster_name }}
+network.host: 0.0.0.0
+http.port: 9200
+
+node.name: {{ inventory_hostname }}
+{% if node_roles[0] == 'master' %}
+node.roles: [ master ]
+{% elif node_roles[0] == "client" %}
+node.roles: [ ]
+{% elif node_roles[0] == "hotdata" %}
+node.roles: [ data ]
+node.attr.box_type: hot
+{% elif node_roles[0] == "colddata" %}
+node.roles: [ data ]
+node.attr.box_type: cold
+{%endif%}
+
+path.data: /app/data/elasticsearch
+path.logs: /var/log/elasticsearch
+
+bootstrap.memory_lock: true
+
+{% if node_roles[0] == 'master' %}
+# 所有master ip
+cluster.initial_master_nodes: ["{{ groups['master'] | map ('extract',hostvars,['ansible_host']) | join('\",\"')}}"]
+{%endif%}
+
+# 所有master ip
+discovery.seed_hosts: ["{{ groups['master'] | map ('extract',hostvars,['ansible_host']) | join('\",\"')}}"]
+
+xpack.monitoring.templates.enabled: true
+xpack.security.enabled: true
+xpack.license.self_generated.type: basic
+xpack.security.transport.ssl.enabled: true
+
+xpack.security.http.ssl:
+  enabled: false
+
+# 需要预先生成证书
+xpack.security.transport.ssl:
+  enabled: true
+  verification_mode: certificate
+  keystore.path: elastic-certificates.p12
+  truststore.path: elastic-certificates.p12
+

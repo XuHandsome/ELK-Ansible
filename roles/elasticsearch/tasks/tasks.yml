@@ -1,0 +1,255 @@
+---
+- name: check /app/data mount status
+  command: mountpoint -q /app/data
+  args:
+    creates: "{{ elastic_data }}"
+  register: volume_stat
+  ignore_errors: true
+  tags:
+    - es
+    - check
+
+- block:
+    - name: create data directorys
+      file:
+        name: /app/data
+        state: directory
+
+    - name: mkfs xfs {{ data_device }}
+      filesystem:
+        fstype: xfs
+        opts: -f
+        dev: "{{ data_device }}"
+
+    - name: mount {{ data_device }} to /app/data
+      mount:
+        path: /app/data
+        src: "{{ data_device }}"
+        fstype: xfs
+        state: mounted
+  when:
+    - volume_stat.rc is defined
+    - volume_stat.rc != 0
+
+  tags:
+    - es
+    - disk
+
+- name: create data dir
+  file:
+    dest: "{{ elastic_data }}"
+    state: directory
+    owner: elasticsearch
+    group: elasticsearch
+    mode: 0755
+  tags:
+    - es
+    - disk
+
+- name: Install rpms
+  yum:
+    disablerepo: "*"
+    enablerepo: "{{ yumrepo }}"
+    name:
+      - elasticsearch-8.2.2
+    state: present
+  register: first_install
+  tags:
+    - es
+    - yum
+
+- name: upload system files
+  copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    backup: yes
+  with_items:
+    - { src: "limits.conf", dest: "/etc/security/limits.conf" }
+    - { src: "system.conf", dest: "/etc/systemd/system.conf" }
+    - {
+        src: "elasticsearch.service",
+        dest: "/usr/lib/systemd/system/elasticsearch.service",
+      }
+  notify:
+    - restart elasticsearch
+    - elasticsearch status check
+  tags:
+    - es
+    - system
+
+- block:
+    - name: issue root cert file
+      command: "{{ elastic_home }}/bin/elasticsearch-certutil ca --pass={{ cert_pass }} --days=3650 --out=elastic-stack-ca.p12"
+      args:
+        creates: "{{ elastic_home }}/elastic-stack-ca.p12"
+
+    - name: issue cluster cert file
+      command: "{{ elastic_home }}/bin/elasticsearch-certutil cert --ca-pass={{ cert_pass }} --pass={{ cert_pass }} --ca elastic-stack-ca.p12 --out=elastic-certificates.p12"
+      register: issue_cert
+      args:
+        creates: "{{ elastic_home }}/elastic-certificates.p12"
+
+    - name: download cluster cert file
+      fetch:
+        src: "{{ elastic_home }}/elastic-certificates.p12"
+        dest: "{{ inventory_dir }}/data/elastic-certificates.p12"
+        flat: True
+  when:
+    - init is defined and init|lower == "true"
+  tags:
+    - es
+    - cert
+- block:
+  - name: config keystore password
+    shell: "echo '{{ cert_pass }}'|{{ elastic_home }}/bin/elasticsearch-keystore add xpack.security.transport.ssl.keystore.secure_password -f -s"
+
+  - name: config truststore password
+    shell: "echo '{{ cert_pass }}'|{{ elastic_home }}/bin/elasticsearch-keystore add xpack.security.transport.ssl.truststore.secure_password -f -s"
+  when: issue_cert.changed == true
+  tags:
+    - es
+    - cert
+
+- name: distribute cluster cert file
+  copy:
+    src: "{{ inventory_dir }}/data/elastic-certificates.p12"
+    dest: "{{ elastic_etc }}/elastic-certificates.p12"
+    owner: elasticsearch
+    group: elasticsearch
+    backup: yes
+  tags:
+    - es
+    - cert
+
+- name: upload jvm options
+  template:
+    src: jvm.options.j2
+    dest: "{{ elastic_etc }}/jvm.options"
+    owner: elasticsearch
+    group: elasticsearch
+    backup: yes
+  notify:
+    - restart elasticsearch
+    - elasticsearch status check
+  tags:
+    - es
+    - jvm
+    - config
+
+- name: get node role
+  set_fact:
+    node_roles: "{{ group_names | reject('equalto', 'es') | list}}"
+
+- name: distribute config
+  template:
+    src: elasticsearch.yml.j2
+    dest: "{{ elastic_etc }}/elasticsearch.yml"
+    owner: elasticsearch
+    group: elasticsearch
+    backup: yes
+  notify:
+    - restart elasticsearch
+    - elasticsearch status check
+  tags:
+    - es
+    - config
+# 安装插件
+- name: check analysis ik plugin installed
+  stat:
+    path: /usr/share/elasticsearch/plugins/analysis-ik
+  register: ik_install_dir
+
+- name: upload plugin files
+  copy:
+    src: "{{ item }}"
+    dest: /opt/
+  with_items:
+    - elasticsearch-analysis-ik-8.2.2.zip
+  when: ik_install_dir.stat.isdir
+  register: upload_plugin
+  tags:
+    - es
+    - config
+
+- name: install plugins
+  shell: "echo y|/usr/share/elasticsearch/bin/elasticsearch-plugin install file:///opt/{{ item }}"
+  with_items:
+    - elasticsearch-analysis-ik-8.2.2.zip
+  register: plugins_installd
+  notify:
+    - restart elasticsearch
+    - elasticsearch status check
+  when: upload_plugin.changed == true
+  tags:
+    - es
+    - config
+
+# 设置elastic和kibana_system随机密码,只有首次yum安装时才会运行, 保存为project/data/elastic.pass以及kibana_system.pass
+- block:
+    - name: set elastic user password
+      shell: "/usr/share/elasticsearch/bin/elasticsearch-reset-password auto -u elastic -b -s"
+      register: elastic_passwd
+
+    - set_fact:
+        elastic_passwd: "{{ elastic_passwd.stdout }}"
+
+    - name: save elastic password to local {{ inventory_dir }}/data/elastic.pass
+      delegate_to: localhost
+      copy:
+        content: "{{ elastic_passwd }}"
+        dest: "{{ inventory_dir }}/data/elastic.pass"
+
+    - name: set kibana_system user password
+      shell: "/usr/share/elasticsearch/bin/elasticsearch-reset-password auto -u kibana_system -b -s"
+      register: kibana_system_passwd
+
+    - set_fact:
+        kibana_system_passwd: "{{ kibana_system_passwd.stdout }}"
+
+    - name: save kibana_system password to local {{ inventory_dir }}/data/kibana_system.pass
+      delegate_to: localhost
+      copy:
+        content: "{{ kibana_system_passwd }}"
+        dest: "{{ inventory_dir }}/data/kibana_system.pass"
+  when:
+    - init is defined and init|lower == "true"
+    - first_install.changed == true
+  tags:
+    - es
+    - config
+
+- block:
+    - name: get local password
+      delegate_to: localhost
+      shell: "cat {{ inventory_dir }}/data/elastic.pass"
+      register: local_elastic_pass
+
+    - set_fact:
+        elastic_passwd: "{{ local_elastic_pass.stdout }}"
+  when:
+    - elastic_passwd.skipped is defined
+    - elastic_passwd.skipped == true
+    - init is defined and init|lower == "true"
+  tags:
+    - es
+    - config
+
+- name: curl cluster api
+  uri:
+    method: GET
+    url: "{{ elastic_client }}/_cluster/health"
+    force_basic_auth: yes
+    user: "elastic"
+    password: "{{ elastic_passwd }}"
+    status_code: [200]
+  register: status
+  until: status.status == 200
+  retries: 3
+  delay: 2
+  when:
+    - init is defined and init|lower == "true"
+  notify:
+    - elasticsearch status check
+  tags:
+    - es
+    - check

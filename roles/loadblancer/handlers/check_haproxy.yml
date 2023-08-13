@@ -1,0 +1,16 @@
+# 检查运行状态
+- name: check listen port
+  wait_for:
+    port: "{{ item }}"
+    timeout: 15
+    delay: 3
+  with_items:
+    - "{{ haproxy_port }}"
+
+- name: haproxy status
+  command: systemctl status haproxy
+  changed_when: False
+  register: haproxy_check
+
+- name: check proccess
+  debug: var=haproxy_check verbosity=0

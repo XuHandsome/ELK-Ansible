@@ -1,0 +1,16 @@
+# 检查运行状态
+- name: check listen port
+  wait_for:
+    port: "{{ item }}"
+    timeout: 15
+    delay: 5
+  with_items:
+    - "{{elastic_port}}"
+
+- name: elasticsearch status
+  command: systemctl status elasticsearch
+  changed_when: False
+  register: elasticsearch_check
+
+- name: check proccess
+  debug: var=elasticsearch_check verbosity=0

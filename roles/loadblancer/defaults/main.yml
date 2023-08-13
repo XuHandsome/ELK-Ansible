@@ -1,0 +1,8 @@
+---
+yumrepo: "elasticstack"
+keepalived_etc: "/etc/keepalived"
+es_virtual_router_id: 50
+kibana_virtual_router_id: 51
+haproxy_etc: "/etc/haproxy"
+logstash_port: "{{ logstash_piplines }}"
+haproxy_port: [6000, 7000]

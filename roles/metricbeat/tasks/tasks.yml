@@ -1,0 +1,50 @@
+---
+- name: Install rpms
+  yum:
+    disablerepo: "*"
+    enablerepo: "{{ yumrepo }}"
+    name:
+      - metricbeat-8.2.2
+    state: present
+  register: first_install
+  tags:
+    - metricbeat
+    - yum
+
+- name: get local password
+  delegate_to: localhost
+  shell: "cat {{ inventory_dir }}/data/elastic.pass"
+  register: elastic_pass
+
+- set_fact:
+    elastic_passwd: "{{ elastic_pass.stdout }}"
+
+- name: get es cluster info
+  uri:
+    method: GET
+    url: "{{ elastic_client }}/"
+    force_basic_auth: yes
+    user: "elastic"
+    password: "{{ elastic_passwd }}"
+    status_code: [200]
+  register: status
+  until: status.status == 200
+  retries: 3
+  delay: 2
+
+- set_fact:
+    es_cluster_uuid: "{{ status.json['cluster_uuid'] }}"
+
+- name: distribute config
+  template:
+    src: metricbeat.yml.j2
+    dest: "{{ metricbeat_etc }}/metricbeat.yml"
+    owner: root
+    group: root
+    backup: yes
+  notify:
+    - restart metricbeat
+    - metricbeat status check
+  tags:
+    - metricbeat
+    - config

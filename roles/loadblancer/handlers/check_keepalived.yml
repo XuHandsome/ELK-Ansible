@@ -1,0 +1,9 @@
+# 检查运行状态
+
+- name: keepalived status
+  command: systemctl status keepalived
+  changed_when: False
+  register: keepalived_check
+
+- name: check proccess
+  debug: var=keepalived_check verbosity=0

@@ -1,0 +1,13 @@
+- name: cofigure yum repo
+  copy: src={{ yumrepo }}.repo dest=/etc/yum.repos.d/{{ yumrepo }}.repo
+  tags:
+    - yumrepo
+    - baserpm
+    - init
+
+- name: clean yum cache
+  command: yum clean all
+  changed_when: False
+  tags:
+    - yumrepo
+    - init

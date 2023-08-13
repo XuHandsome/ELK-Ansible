@@ -1,0 +1,7 @@
+---
+elastic_home: "/usr/share/elasticsearch"
+elastic_etc: "/etc/elasticsearch"
+elastic_data: "/app/data/elasticsearch"
+elastic_port: [9200, 9300]
+elastic_client: "http://{{hostvars[groups.client[0]]['ansible_host']}}:9200"
+yumrepo: "elasticstack"
